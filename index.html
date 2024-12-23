@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Pathfinding Simulation</title>
+    <!-- Include p5.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+</head>
+<body>
+    <h2 style="text-align:center;">Car Pathfinding Simulation</h2>
+    <!-- Canvas will appear here -->
+    <script>
+        // Daniel Shiffman
+        // Nature of Code: Intelligence and Learning
+        // Modified by Naveen Singh, MH edits
+        let targetCellSize = 50; // Desired size for each grid cell in pixels
+        
+let rows = 25;
+let cols = 25;
+
+
+let windowSize = 800;
+let cellSize = windowSize / Math.max(rows, cols);
+let grid;
+let cars = [];
+let destinations = [];
+let turn = 0;
+let images = {};
+let path = [];
+let carColors = ['orange', 'blue', 'green', 'black'];
+let colorIndex = 0;
+
+
+// p5.js setup function
+function preload() {
+  images.carOrange = loadImage('../images/CarOrange.png');
+  images.carBlue = loadImage('../images/CarBlue.png');
+  images.carGreen = loadImage('../images/CarGreen.png');
+  images.carBlack = loadImage('../images/CarBlack.png');
+  images.goalOrange = loadImage('../images/GoalParkOrange.png');
+  images.goalBlue = loadImage('../images/GoalParkBlue.png');
+  images.goalGreen = loadImage('../images/GoalParkGreen.png');
+  images.goalBlack = loadImage('../images/GoalParkBlack.png');
+  
+  
+  images.tree = loadImage('../images/ObstacleTree.png');
+  images.house = loadImage('../images/Obstacleroof.png');
+  images.road = loadImage('../images/stone.jpg');
+
+
+}
+
+function setup() {
+  createCanvas(windowSize, windowSize);
+  
+  // MH edit
+  frameRate(10);
+  
+  grid = new Grid(rows, cols);
+  grid.addWallAndSpaces();
+  grid.addNeighbours();
+
+  // Initialize cars with random positions and valid goals
+  for (let i = 0; i < 4; i++) {
+    let car = new Car(grid);
+    cars.push(car);
+
+    // Ensure the start and end spots are on roads and not occupied
+    car.startSpot.wall = false;
+    car.startSpot.car = car;
+    car.endSpot.wall = false;
+    destinations.push(car.endSpot);
+  }
+}
+
+// p5.js draw loop
+function draw() {
+  background(255);
+  
+  // Each car takes turns moving
+  switch (turn % 4) {
+    case 0: moveCar(cars[0], cars[0].startSpot, cars[0].endSpot); break;
+    case 1: moveCar(cars[1], cars[1].startSpot, cars[1].endSpot); break;
+    case 2: moveCar(cars[2], cars[2].startSpot, cars[2].endSpot); break;
+    case 3: moveCar(cars[3], cars[3].startSpot, cars[3].endSpot); break;
+  }
+
+  grid.show();
+  turn++;
+}
+
+// Function to move each car towards its goal
+function moveCar(car, start, end) {
+  if (car.i !== end.i || car.j !== end.j) {
+    path = car.getPath(start, end);
+    grid.clear();
+    if (path.length > 0) {
+      start = path.shift();
+      start = path.shift();
+      car.stepForward(start);
+    }
+  }
+}
+
+// Spot class
+class Spot {
+  constructor(i, j) {
+    this.i = i;
+    this.j = j;
+    this.f = 0;
+    this.g = 0;
+    this.h = 0;
+    this.neighbours = [];
+    this.previous = null;
+    this.car = false;
+
+    // Randomly assign types for buildings, trees, and roads
+    let rand = random();
+    if (rand < 0.25) {
+      this.type = 'building';  // 25% chance to be a building
+    } else if (rand < 0.40) {
+      this.type = 'tree';  // 15% chance to be a tree
+    } else {
+      this.type = 'road';  // 60% chance to be a road
+    }
+  }
+
+  isObstacle() {
+    return this.type === 'building' || this.type === 'tree' || this.car;
+  }
+
+  draw() {
+    let x = this.i * cellSize;
+    let y = this.j * cellSize;
+    noStroke();
+
+    // Draw the cell based on its type
+    if (this.car) {
+        switch(this.car.color) {
+            case "orange":
+                image(images.carOrange, this.car.i * cellSize, this.car.j * cellSize, cellSize, cellSize);
+                break;
+            case "blue":
+                image(images.carBlue, this.car.i * cellSize, this.car.j * cellSize, cellSize, cellSize);
+                break
+            case "green":
+                image(images.carGreen, this.car.i * cellSize, this.car.j * cellSize, cellSize, cellSize);
+                break;
+            case "black":
+                image(images.carBlack, this.car.i * cellSize, this.car.j * cellSize, cellSize, cellSize);
+                break
+        }
+    } else if (this.type === 'building') {
+      fill(139, 69, 19); // Building color (brown)
+      image(images.house,x, y, cellSize, cellSize);
+    } else if (this.type === 'tree') {
+      image(images.tree, x, y, cellSize, cellSize); // Tree image
+    } else if (this.type === 'road') {
+        image(images.road,x, y, cellSize, cellSize);
+     
+    } 
+
+  // Find the car following this path
+    if (path.includes(this)) {
+        let index = path.indexOf(this);
+    
+      // Find the car associated with this path
+      let car = cars.find(car => car.path && car.path.includes(this));
+      if (car) {  
+        // Set line color based on the car's color
+        switch (car.color) {
+          case "orange":
+            stroke(255, 165, 0);  // Orange color
+            break;
+          case "blue":
+            stroke(0, 0, 255);  // Blue color
+            break;
+          case "green":
+            stroke(0, 128, 0);  // Green color
+            break;
+          case "black":
+            stroke(0, 0, 0);  // Black color
+            break;
+        }
+        strokeWeight(2);
+    
+        // Draw line to the next spot in the path
+        if (index < path.length - 2) {
+          let nextSpot = path[index + 1];
+          let x1 = this.i * cellSize + cellSize / 2;
+          let y1 = this.j * cellSize + cellSize / 2;
+          let x2 = nextSpot.i * cellSize + cellSize / 2;
+          let y2 = nextSpot.j * cellSize + cellSize / 2;
+          line(x1, y1, x2, y2);
+        }
+      }
+    }
+    
+
+
+    // Show destination 
+   if (destinations.includes(this) && !this.car) {
+        let car = cars.find(car => car.endSpot === this);
+              switch(car.color) {
+                case "orange":
+                  image(images.goalOrange, x, y, cellSize, cellSize);
+                  break;
+                case "blue":
+                  image(images.goalBlue, x, y, cellSize, cellSize);
+                  break;
+                case "green":
+                  image(images.goalGreen, x, y, cellSize, cellSize);
+                  break;
+                case "black":
+                  image(images.goalBlack, x, y, cellSize, cellSize);
+                  break;
+              }
+    }
+}
+}
+
+// Grid class
+class Grid {
+  constructor(rows, cols) {
+    this.rows = rows;
+    this.cols = cols;
+    this.spots = new Array(rows).fill().map(() => new Array(cols));
+  }
+
+  addWallAndSpaces() {
+    // Initial population with roads and obstacles
+    for (let i = 0; i < this.rows; i++) {
+      for (let j = 0; j < this.cols; j++) {
+        this.spots[i][j] = new Spot(i, j);
+        // Ensure a connected road network by manually creating paths
+        if (i === 0 || i === this.rows - 1 || j === 0 || j === this.cols - 1) {
+          this.spots[i][j].type = 'road';
+        }
+      }
+    }
+  }
+    
+
+  addNeighbours() {
+    for (let i = 0; i < rows; i++) {
+      for (let j = 0; j < cols; j++) {
+        let spot = this.spots[i][j];
+        if (i > 0) spot.neighbours.push(this.spots[i - 1][j]);
+        if (i < cols - 1) spot.neighbours.push(this.spots[i + 1][j]);
+        if (j > 0) spot.neighbours.push(this.spots[i][j - 1]);
+        if (j < rows - 1) spot.neighbours.push(this.spots[i][j + 1]);
+      }
+    }
+  }
+
+  show() {
+    for (let i = 0; i < this.rows; i++) {
+      for (let j = 0; j < this.cols; j++) {
+        this.spots[i][j].draw();
+      }
+    }
+  }
+    //clean
+  clear() {
+    for (let row of this.spots) {
+      for (let spot of row) {
+        spot.f = spot.g = spot.h = 0;
+        spot.previous = null;
+      }
+    }
+  }
+
+  static heuristic(spot1, spot2) {
+    return abs(spot1.i - spot2.i) + abs(spot1.j - spot2.j);
+  }
+}
+
+
+// Car class
+class Car {
+    
+   constructor(grid) {
+    this.grid = grid;
+    this.i = floor(random(rows));
+    this.j = floor(random(cols));
+    this.startSpot = grid.spots[this.i][this.j];
+    this.color = carColors[colorIndex++];
+    
+    
+    // Ensure the start spot is on a road
+    do{
+      this.i = floor(random(rows));
+      this.j = floor(random(cols));
+      this.startSpot = grid.spots[this.i][this.j];
+       this.endSpot = grid.spots[floor(random(rows))][floor(random(cols))];
+    }while (this.startSpot.type !== 'road' || this.startSpot.car || this.startSpot.wall || !this.pathExists(this.startSpot, this.endSpot)) 
+
+   
+  }
+
+  pathExists(start, end) {
+    // Similar DFS to check for road connectivity only
+    let current = start;
+    let stack = [start];
+    let visited = new Set();
+    visited.add(start);
+
+    while (stack.length > 0) {
+      let current = stack.pop();
+      if (current === end) return true;
+
+      for (let neighbor of current.neighbours) {
+        if (!visited.has(neighbor) && neighbor.type === 'road') {
+          visited.add(neighbor);
+          stack.push(neighbor);
+        }
+      }
+    }
+    return false;
+  }
+  
+  getPath(start, destination) {
+    this.path = [];
+    this.openSet = new MinHeap();
+    this.closedSet = new Set();
+
+    start.g = 0;
+    start.h = Grid.heuristic(start, destination);
+    start.f = start.g + start.h;
+    this.openSet.insert(start);
+
+    while (!this.openSet.isEmpty()) {
+      let current = this.openSet.extractMin();
+
+      if (current === destination) {
+        this.path = [];
+        while (current) {
+          this.path.push(current);
+          current = current.previous;
+        }
+        this.path.reverse();
+        return this.path;
+      }
+
+      this.closedSet.add(current);
+
+      for (let neighbor of current.neighbours) {
+        if (this.closedSet.has(neighbor) || neighbor.isObstacle() || neighbor.type !== 'road') {
+          continue;
+        }
+
+        let tempG = current.g + 1;
+        if (tempG < neighbor.g || !this.openSet.includes(neighbor)) {
+          neighbor.previous = current;
+          neighbor.g = tempG;
+          neighbor.h = Grid.heuristic(neighbor, destination);
+          neighbor.f = neighbor.g + neighbor.h;
+          
+          if (!this.openSet.includes(neighbor)) {
+            this.openSet.insert(neighbor);
+          }
+        }
+      }
+    }
+
+    return []; // No path found
+  }
+
+  stepForward(step) {
+    let { i, j } = step;
+    this.grid.spots[this.i][this.j].car = null;
+    this.i = i;
+    this.j = j;
+    this.startSpot = grid.spots[this.i][this.j];
+    this.grid.spots[i][j].car = this;
+  }
+}
+
+// MinHeap class
+
+class MinHeap {
+  constructor() {
+    this.heap = [];
+  }
+
+  insert(node) {
+    this.heap.push(node);
+    this.bubbleUp(this.heap.length - 1);
+  }
+
+  extractMin() {
+    if (this.heap.length < 2) return this.heap.pop();
+    const min = this.heap[0];
+    this.heap[0] = this.heap.pop();
+    this.bubbleDown(0);
+    return min;
+  }
+
+  bubbleUp(index) {
+    while (index > 0) {
+      const parentIndex = Math.floor((index - 1) / 2);
+      if (this.heap[parentIndex].f <= this.heap[index].f) break;
+      [this.heap[parentIndex], this.heap[index]] = [this.heap[index], this.heap[parentIndex]];
+      index = parentIndex;
+    }
+  }
+
+  bubbleDown(index) {
+    const length = this.heap.length;
+    while (true) {
+      const leftChild = 2 * index + 1;
+      const rightChild = 2 * index + 2;
+      let smallest = index;
+
+      if (leftChild < length && this.heap[leftChild].f < this.heap[smallest].f) {
+        smallest = leftChild;
+      }
+      if (rightChild < length && this.heap[rightChild].f < this.heap[smallest].f) {
+        smallest = rightChild;
+      }
+      if (smallest === index) break;
+
+      [this.heap[index], this.heap[smallest]] = [this.heap[smallest], this.heap[index]];
+      index = smallest;
+    }
+  }
+
+  isEmpty() {
+    return this.heap.length === 0;
+  }
+
+  includes(node) {
+    return this.heap.includes(node);
+  }
+}
+    </script>
+</body>
+</html>
